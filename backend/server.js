@@ -111,6 +111,28 @@ app.get('/api/stoklar', async (req, res) => {
   }
 });
 
+// Tek bir stok getir
+app.get('/api/stoklar/:id', async (req, res) => {
+  try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
+    const { ObjectId } = require('mongodb');
+    const stokId = new ObjectId(req.params.id);
+    
+    const stok = await db.collection("stoks").findOne({ _id: stokId });
+    
+    if (!stok) {
+      return res.status(404).json({ message: 'Stok bulunamadı' });
+    }
+    
+    res.json(stok);
+  } catch (error) {
+    console.error('Stok getirme hatası:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Yeni stok ekle
 app.post('/api/stoklar', async (req, res) => {
   try {
