@@ -2,7 +2,10 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>Stok Takip Sistemi</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -708,6 +711,242 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Genel Responsive Düzenlemeler */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+                margin-bottom: 20px;
+            }
+
+            /* Form Düzenlemeleri */
+            .form-section {
+                padding: 15px;
+            }
+
+            #urunForm {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            #urunForm input,
+            #urunForm button {
+                width: 100%;
+                margin: 0;
+            }
+
+            /* Kontrol Bölümü */
+            .control-section {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .view-toggle {
+                width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            .search-filter {
+                width: 100%;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            #aramaKutusu,
+            #kategoriFiltre {
+                width: 100%;
+            }
+
+            /* İstatistik Kartları */
+            .stats-section {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 15px;
+            }
+
+            .stat-card h3 {
+                font-size: 12px;
+            }
+
+            .stat-card p {
+                font-size: 18px;
+            }
+
+            /* Stok Kartları */
+            .stok-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .stok-card {
+                margin: 0;
+                padding: 15px;
+            }
+
+            .stok-card-footer {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .stok-card-footer button {
+                padding: 8px;
+                font-size: 12px;
+            }
+
+            /* Tablo Görünümü */
+            .table-section {
+                padding: 10px;
+                margin: 10px 0;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            table {
+                font-size: 14px;
+            }
+
+            th, td {
+                padding: 8px;
+                white-space: nowrap;
+            }
+
+            /* Modal Düzenlemeleri */
+            .modal-content {
+                width: 95%;
+                margin: 20px auto;
+                padding: 15px;
+            }
+
+            #guncelleForm,
+            #girisForm,
+            #cikisForm,
+            #sifreForm {
+                gap: 12px;
+            }
+
+            #guncelleForm input,
+            #girisForm input,
+            #cikisForm input,
+            #sifreForm input,
+            #girisForm textarea,
+            #cikisForm textarea {
+                padding: 12px;
+                font-size: 16px; /* Mobilde daha büyük font */
+            }
+
+            /* Toast Bildirimleri */
+            .toast-container {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+            }
+
+            .toast {
+                min-width: auto;
+                max-width: none;
+                margin: 0 10px 10px;
+            }
+
+            /* Excel Import Bölümü */
+            .excel-import {
+                padding: 15px;
+            }
+
+            .excel-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn-excel {
+                width: 100%;
+            }
+        }
+
+        /* Daha Küçük Ekranlar İçin */
+        @media (max-width: 480px) {
+            .stats-section {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card {
+                text-align: center;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .stok-card-footer {
+                grid-template-columns: 1fr;
+            }
+
+            /* Tablo görünümünde scroll ipucu */
+            .table-section::after {
+                content: '← Kaydırın →';
+                display: block;
+                text-align: center;
+                padding: 5px;
+                color: #666;
+                font-size: 12px;
+            }
+        }
+
+        /* Orta Boy Tabletler İçin */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .stok-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .stats-section {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Dokunmatik Cihazlar İçin */
+        @media (hover: none) {
+            .stok-card-footer button,
+            .btn-excel,
+            .view-btn {
+                padding: 12px; /* Daha büyük dokunma alanı */
+            }
+
+            .toast-close {
+                padding: 8px; /* Daha büyük dokunma alanı */
+            }
+        }
+
+        /* Güvenli Alan (Notch) için */
+        @supports (padding: max(0px)) {
+            .container {
+                padding-left: max(20px, env(safe-area-inset-left));
+                padding-right: max(20px, env(safe-area-inset-right));
+            }
+
+            .toast-container {
+                padding-top: max(20px, env(safe-area-inset-top));
+            }
+        }
+
+        /* Karanlık Mod Desteği */
+        @media (prefers-color-scheme: dark) {
+            .loading-overlay {
+                background: rgba(0,0,0,0.8);
+            }
+
+            .loading-spinner {
+                border-color: #2a2a2a;
+                border-top-color: #3498db;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1372,15 +1611,17 @@
                 this.cikisModal.style.display = 'none';
             }
 
+            // ID formatlamak için yeni yardımcı fonksiyon
+            formatStokId(id) {
+                if (!id) return 'ID-???';
+                // ID'nin son 6 karakterini al ve büyük harfe çevir
+                const kisaId = id.slice(-6).toUpperCase();
+                return `ST-${kisaId}`;
+            }
+
             kartlariGuncelle() {
                 const aramaMetni = this.aramaKutusu.value.toLowerCase();
                 const secilenKategori = this.kategoriFiltre.value;
-                
-                console.log('Kart güncellemesi başlıyor:', {
-                    stokSayisi: this.stoklar.length,
-                    aramaMetni: aramaMetni,
-                    secilenKategori: secilenKategori
-                });
                 
                 let filtrelenmisStoklar = this.stoklar.filter(stok => {
                     const adUygun = stok.ad.toLowerCase().includes(aramaMetni);
@@ -1399,12 +1640,11 @@
                     return;
                 }
 
-                console.log('Filtrelenmiş stok sayısı:', filtrelenmisStoklar.length);
-
                 filtrelenmisStoklar.forEach(stok => {
                     const toplamDeger = stok.miktar * stok.fiyat;
                     const durum = this.durumBelirle(stok.miktar);
                     const yuzde = Math.min((stok.miktar / 100) * 100, 100);
+                    const stokId = this.formatStokId(stok._id);
                     
                     const kartHTML = `
                         <div class="stok-card">
@@ -1414,8 +1654,8 @@
                             </div>
                             <div class="stok-card-body">
                                 <div class="stok-info-row">
-                                    <span class="stok-info-label">Stok ID:</span>
-                                    <span class="stok-info-value">#${stok._id}</span>
+                                    <span class="stok-info-label">Stok Kodu:</span>
+                                    <span class="stok-info-value">${stokId}</span>
                                 </div>
                                 <div class="stok-info-row">
                                     <span class="stok-info-label">Miktar:</span>
@@ -1454,12 +1694,6 @@
                 const aramaMetni = this.aramaKutusu.value.toLowerCase();
                 const secilenKategori = this.kategoriFiltre.value;
                 
-                console.log('Tablo güncellemesi başlıyor:', {
-                    stokSayisi: this.stoklar.length,
-                    aramaMetni: aramaMetni,
-                    secilenKategori: secilenKategori
-                });
-                
                 let filtrelenmisStoklar = this.stoklar.filter(stok => {
                     const adUygun = stok.ad.toLowerCase().includes(aramaMetni);
                     const kategoriUygun = !secilenKategori || stok.kategori === secilenKategori;
@@ -1477,15 +1711,14 @@
                     return;
                 }
 
-                console.log('Filtrelenmiş stok sayısı:', filtrelenmisStoklar.length);
-
                 filtrelenmisStoklar.forEach(stok => {
                     const toplamDeger = stok.miktar * stok.fiyat;
                     const durum = this.durumBelirle(stok.miktar);
+                    const stokId = this.formatStokId(stok._id);
                     
                     const row = `
                         <tr>
-                            <td>${stok._id}</td>
+                            <td>${stokId}</td>
                             <td>${stok.ad}</td>
                             <td>${stok.kategori}</td>
                             <td>${stok.miktar}</td>
@@ -1578,6 +1811,37 @@
                         this.kategoriDagilimChart.destroy();
                     }
 
+                    const chartOptions = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: window.innerWidth <= 768 ? 'bottom' : 'right',
+                                labels: {
+                                    boxWidth: window.innerWidth <= 768 ? 12 : 20,
+                                    padding: window.innerWidth <= 768 ? 10 : 20,
+                                    font: {
+                                        size: window.innerWidth <= 768 ? 10 : 12
+                                    }
+                                }
+                            }
+                        },
+                        layout: {
+                            padding: {
+                                top: window.innerWidth <= 768 ? 5 : 20,
+                                right: window.innerWidth <= 768 ? 5 : 20,
+                                bottom: window.innerWidth <= 768 ? 5 : 20,
+                                left: window.innerWidth <= 768 ? 5 : 20
+                            }
+                        }
+                    };
+
+                    // Grafik yüksekliklerini ekran boyutuna göre ayarla
+                    const chartHeight = window.innerWidth <= 768 ? '300px' : '400px';
+                    document.querySelectorAll('.chart-container').forEach(container => {
+                        container.style.height = chartHeight;
+                    });
+
                     this.stokHareketleriChart = new Chart(stokHareketleriCtx, {
                         type: 'line',
                         data: {
@@ -1601,42 +1865,7 @@
                                 }
                             ]
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                title: {
-                                    display: false
-                                },
-                                legend: {
-                                    position: 'bottom',
-                                    labels: {
-                                        padding: 20
-                                    }
-                                },
-                                tooltip: {
-                                    mode: 'index',
-                                    intersect: false
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    title: {
-                                        display: true,
-                                        text: 'Miktar'
-                                    }
-                                }
-                            },
-                            layout: {
-                                padding: {
-                                    top: 10,
-                                    right: 10,
-                                    bottom: 10,
-                                    left: 10
-                                }
-                            }
-                        }
+                        options: chartOptions
                     });
 
                     this.kategoriDagilimChart = new Chart(kategoriDagilimCtx, {
@@ -1657,26 +1886,7 @@
                                 ]
                             }]
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: {
-                                        padding: 20
-                                    }
-                                }
-                            },
-                            layout: {
-                                padding: {
-                                    top: 20,
-                                    right: 20,
-                                    bottom: 20,
-                                    left: 20
-                                }
-                            }
-                        }
+                        options: chartOptions
                     });
 
                     console.log('Grafikler başarıyla oluşturuldu');
@@ -1984,6 +2194,13 @@
 
         // Uygulamayı başlat
         const stokTakip = new StokTakip();
+
+        // Pencere boyutu değiştiğinde grafikleri güncelle
+        window.addEventListener('resize', () => {
+            if (stokTakip.stokHareketleriChart && stokTakip.kategoriDagilimChart) {
+                stokTakip.grafikleriOlustur();
+            }
+        });
     </script>
 </body>
 </html>
