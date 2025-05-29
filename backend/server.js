@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
@@ -11,72 +11,90 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB bağlantısı
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-})
-  .then(() => console.log('MongoDB bağlantısı başarılı'))
-  .catch((err) => console.error('MongoDB bağlantı hatası:', err));
-
-// Stok şeması
-const stokSchema = new mongoose.Schema({
-  ad: String,
-  kategori: String,
-  miktar: Number,
-  fiyat: Number,
-  tarih: { type: String, default: () => new Date().toLocaleDateString('tr-TR') }
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  }
 });
 
-const Stok = mongoose.model('Stok', stokSchema);
+let db;
 
-// Hareket şeması
-const hareketSchema = new mongoose.Schema({
-  tarih: { type: String, default: () => new Date().toLocaleString('tr-TR') },
-  urunAdi: String,
-  urunId: String,
-  islemTipi: String,
-  miktar: Number,
-  oncekiStok: Number,
-  yeniStok: Number,
-  aciklama: String
+async function connectToMongo() {
+  try {
+    await client.connect();
+    await client.db("admin").command({ ping: 1 });
+    console.log("MongoDB bağlantısı başarılı!");
+    
+    db = client.db("stok_takip");
+    
+    // Koleksiyonları oluştur
+    await db.createCollection("stoks");
+    await db.createCollection("hareketler");
+    
+  } catch (error) {
+    console.error("MongoDB bağlantı hatası:", error);
+    process.exit(1);
+  }
+}
+
+connectToMongo();
+
+// Uygulama kapandığında bağlantıyı kapat
+process.on('SIGINT', async () => {
+  await client.close();
+  process.exit(0);
 });
-
-const Hareket = mongoose.model('Hareket', hareketSchema);
 
 // Routes
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API çalışıyor', timestamp: new Date().toISOString() });
+});
+
 // Tüm stokları getir
 app.get('/api/stoklar', async (req, res) => {
   try {
-    const stoklar = await Stok.find();
+    console.log('Stoklar isteniyor...');
+    const stoklar = await db.collection("stoks").find({}).toArray();
+    console.log('Bulunan stoklar:', stoklar);
     res.json(stoklar);
   } catch (error) {
+    console.error('Stok getirme hatası:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
 // Yeni stok ekle
 app.post('/api/stoklar', async (req, res) => {
-  const stok = new Stok(req.body);
   try {
-    const yeniStok = await stok.save();
+    const stok = {
+      ...req.body,
+      tarih: new Date().toLocaleDateString('tr-TR')
+    };
+    
+    const result = await db.collection("stoks").insertOne(stok);
+    const yeniStok = { ...stok, _id: result.insertedId };
     
     // Hareket kaydı oluştur
-    const hareket = new Hareket({
+    const hareket = {
+      tarih: new Date().toLocaleString('tr-TR'),
       urunAdi: stok.ad,
-      urunId: yeniStok._id,
+      urunId: result.insertedId.toString(),
       islemTipi: 'GİRİŞ',
       miktar: stok.miktar,
       oncekiStok: 0,
       yeniStok: stok.miktar,
       aciklama: 'Yeni ürün girişi'
-    });
-    await hareket.save();
+    };
+    
+    await db.collection("hareketler").insertOne(hareket);
     
     res.status(201).json(yeniStok);
   } catch (error) {
+    console.error('Stok ekleme hatası:', error);
     res.status(400).json({ message: error.message });
   }
 });
@@ -84,31 +102,37 @@ app.post('/api/stoklar', async (req, res) => {
 // Stok güncelle
 app.put('/api/stoklar/:id', async (req, res) => {
   try {
-    const stok = await Stok.findById(req.params.id);
+    const { ObjectId } = require('mongodb');
+    const stokId = new ObjectId(req.params.id);
+    
+    const stok = await db.collection("stoks").findOne({ _id: stokId });
     const oncekiMiktar = stok.miktar;
     const yeniMiktar = req.body.miktar;
     
-    const guncelStok = await Stok.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
+    const result = await db.collection("stoks").findOneAndUpdate(
+      { _id: stokId },
+      { $set: req.body },
+      { returnDocument: 'after' }
     );
 
     if (oncekiMiktar !== yeniMiktar) {
-      const hareket = new Hareket({
-        urunAdi: guncelStok.ad,
-        urunId: guncelStok._id,
+      const hareket = {
+        tarih: new Date().toLocaleString('tr-TR'),
+        urunAdi: result.value.ad,
+        urunId: stokId.toString(),
         islemTipi: 'GÜNCELLEME',
         miktar: Math.abs(yeniMiktar - oncekiMiktar),
         oncekiStok: oncekiMiktar,
         yeniStok: yeniMiktar,
         aciklama: 'Manuel güncelleme'
-      });
-      await hareket.save();
+      };
+      
+      await db.collection("hareketler").insertOne(hareket);
     }
 
-    res.json(guncelStok);
+    res.json(result.value);
   } catch (error) {
+    console.error('Stok güncelleme hatası:', error);
     res.status(400).json({ message: error.message });
   }
 });
@@ -116,9 +140,13 @@ app.put('/api/stoklar/:id', async (req, res) => {
 // Stok sil
 app.delete('/api/stoklar/:id', async (req, res) => {
   try {
-    await Stok.findByIdAndDelete(req.params.id);
+    const { ObjectId } = require('mongodb');
+    const stokId = new ObjectId(req.params.id);
+    
+    await db.collection("stoks").deleteOne({ _id: stokId });
     res.json({ message: 'Stok silindi' });
   } catch (error) {
+    console.error('Stok silme hatası:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -126,30 +154,36 @@ app.delete('/api/stoklar/:id', async (req, res) => {
 // Stok girişi
 app.post('/api/stoklar/:id/giris', async (req, res) => {
   try {
-    const stok = await Stok.findById(req.params.id);
+    const { ObjectId } = require('mongodb');
+    const stokId = new ObjectId(req.params.id);
+    
+    const stok = await db.collection("stoks").findOne({ _id: stokId });
     const girisMiktari = parseInt(req.body.miktar);
     const oncekiMiktar = stok.miktar;
     const yeniMiktar = oncekiMiktar + girisMiktari;
 
-    const guncelStok = await Stok.findByIdAndUpdate(
-      req.params.id,
-      { miktar: yeniMiktar },
-      { new: true }
+    const result = await db.collection("stoks").findOneAndUpdate(
+      { _id: stokId },
+      { $set: { miktar: yeniMiktar } },
+      { returnDocument: 'after' }
     );
 
-    const hareket = new Hareket({
+    const hareket = {
+      tarih: new Date().toLocaleString('tr-TR'),
       urunAdi: stok.ad,
-      urunId: stok._id,
+      urunId: stokId.toString(),
       islemTipi: 'GİRİŞ',
       miktar: girisMiktari,
       oncekiStok: oncekiMiktar,
       yeniStok: yeniMiktar,
       aciklama: req.body.aciklama || 'Stok girişi'
-    });
-    await hareket.save();
+    };
+    
+    await db.collection("hareketler").insertOne(hareket);
 
-    res.json(guncelStok);
+    res.json(result.value);
   } catch (error) {
+    console.error('Stok giriş hatası:', error);
     res.status(400).json({ message: error.message });
   }
 });
@@ -157,7 +191,10 @@ app.post('/api/stoklar/:id/giris', async (req, res) => {
 // Stok çıkışı
 app.post('/api/stoklar/:id/cikis', async (req, res) => {
   try {
-    const stok = await Stok.findById(req.params.id);
+    const { ObjectId } = require('mongodb');
+    const stokId = new ObjectId(req.params.id);
+    
+    const stok = await db.collection("stoks").findOne({ _id: stokId });
     const cikisMiktari = parseInt(req.body.miktar);
     const oncekiMiktar = stok.miktar;
     const yeniMiktar = oncekiMiktar - cikisMiktari;
@@ -166,25 +203,28 @@ app.post('/api/stoklar/:id/cikis', async (req, res) => {
       return res.status(400).json({ message: 'Yetersiz stok' });
     }
 
-    const guncelStok = await Stok.findByIdAndUpdate(
-      req.params.id,
-      { miktar: yeniMiktar },
-      { new: true }
+    const result = await db.collection("stoks").findOneAndUpdate(
+      { _id: stokId },
+      { $set: { miktar: yeniMiktar } },
+      { returnDocument: 'after' }
     );
 
-    const hareket = new Hareket({
+    const hareket = {
+      tarih: new Date().toLocaleString('tr-TR'),
       urunAdi: stok.ad,
-      urunId: stok._id,
+      urunId: stokId.toString(),
       islemTipi: 'ÇIKIŞ',
       miktar: cikisMiktari,
       oncekiStok: oncekiMiktar,
       yeniStok: yeniMiktar,
       aciklama: req.body.aciklama || 'Stok çıkışı'
-    });
-    await hareket.save();
+    };
+    
+    await db.collection("hareketler").insertOne(hareket);
 
-    res.json(guncelStok);
+    res.json(result.value);
   } catch (error) {
+    console.error('Stok çıkış hatası:', error);
     res.status(400).json({ message: error.message });
   }
 });
@@ -192,9 +232,15 @@ app.post('/api/stoklar/:id/cikis', async (req, res) => {
 // Hareketleri getir
 app.get('/api/hareketler', async (req, res) => {
   try {
-    const hareketler = await Hareket.find().sort({ tarih: -1 }).limit(20);
+    const hareketler = await db.collection("hareketler")
+      .find({})
+      .sort({ tarih: -1 })
+      .limit(20)
+      .toArray();
+      
     res.json(hareketler);
   } catch (error) {
+    console.error('Hareket getirme hatası:', error);
     res.status(500).json({ message: error.message });
   }
 });
