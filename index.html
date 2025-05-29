@@ -981,27 +981,35 @@
             }
 
             girisModalAc(id) {
-                const stok = this.stoklar.find(s => s.id === id);
+                console.log('Giriş modalı açılıyor, ID:', id);
+                const stok = this.stoklar.find(s => s._id === id);
                 if (stok) {
-                    document.getElementById('girisId').value = stok.id;
+                    document.getElementById('girisId').value = stok._id;
                     document.getElementById('girisUrunAdi').textContent = stok.ad;
                     document.getElementById('girisMevcutStok').textContent = stok.miktar;
                     document.getElementById('girisMiktar').value = '';
                     document.getElementById('girisAciklama').value = '';
                     this.girisModal.style.display = 'block';
+                } else {
+                    console.error('Stok bulunamadı:', id);
+                    this.bildirimGoster('Ürün bulunamadı', 'error');
                 }
             }
 
             cikisModalAc(id) {
-                const stok = this.stoklar.find(s => s.id === id);
+                console.log('Çıkış modalı açılıyor, ID:', id);
+                const stok = this.stoklar.find(s => s._id === id);
                 if (stok) {
-                    document.getElementById('cikisId').value = stok.id;
+                    document.getElementById('cikisId').value = stok._id;
                     document.getElementById('cikisUrunAdi').textContent = stok.ad;
                     document.getElementById('cikisMevcutStok').textContent = stok.miktar;
                     document.getElementById('cikisMiktar').max = stok.miktar;
                     document.getElementById('cikisMiktar').value = '';
                     document.getElementById('cikisAciklama').value = '';
                     this.cikisModal.style.display = 'block';
+                } else {
+                    console.error('Stok bulunamadı:', id);
+                    this.bildirimGoster('Ürün bulunamadı', 'error');
                 }
             }
 
@@ -1012,24 +1020,45 @@
                 const girisMiktari = parseInt(document.getElementById('girisMiktar').value);
                 const aciklama = document.getElementById('girisAciklama').value;
 
+                console.log('Stok girişi başlatılıyor:', {
+                    id: id,
+                    miktar: girisMiktari,
+                    aciklama: aciklama
+                });
+
                 try {
-                    // MongoDB ObjectId kontrolü
-                    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-                        throw new Error('Geçersiz ürün ID');
+                    // Miktar kontrolü
+                    if (girisMiktari <= 0) {
+                        throw new Error('Giriş miktarı 0\'dan büyük olmalıdır');
                     }
+
+                    const stok = this.stoklar.find(s => s._id === id);
+                    if (!stok) {
+                        throw new Error('Ürün bulunamadı');
+                    }
+
+                    console.log('API isteği gönderiliyor:', `${this.API_URL}/stoklar/${id}/giris`);
 
                     const response = await fetch(`${this.API_URL}/stoklar/${id}/giris`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ miktar: girisMiktari, aciklama })
+                        body: JSON.stringify({ 
+                            miktar: girisMiktari, 
+                            aciklama: aciklama 
+                        })
                     });
+
+                    console.log('API yanıtı:', response);
 
                     if (!response.ok) {
                         const error = await response.json();
                         throw new Error(error.message || 'Stok girişi yapılamadı');
                     }
+
+                    const result = await response.json();
+                    console.log('İşlem başarılı:', result);
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -1048,24 +1077,49 @@
                 const cikisMiktari = parseInt(document.getElementById('cikisMiktar').value);
                 const aciklama = document.getElementById('cikisAciklama').value;
 
+                console.log('Stok çıkışı başlatılıyor:', {
+                    id: id,
+                    miktar: cikisMiktari,
+                    aciklama: aciklama
+                });
+
                 try {
-                    // MongoDB ObjectId kontrolü
-                    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-                        throw new Error('Geçersiz ürün ID');
+                    // Miktar kontrolü
+                    if (cikisMiktari <= 0) {
+                        throw new Error('Çıkış miktarı 0\'dan büyük olmalıdır');
                     }
+
+                    const stok = this.stoklar.find(s => s._id === id);
+                    if (!stok) {
+                        throw new Error('Ürün bulunamadı');
+                    }
+
+                    if (cikisMiktari > stok.miktar) {
+                        throw new Error('Çıkış miktarı mevcut stoktan fazla olamaz');
+                    }
+
+                    console.log('API isteği gönderiliyor:', `${this.API_URL}/stoklar/${id}/cikis`);
 
                     const response = await fetch(`${this.API_URL}/stoklar/${id}/cikis`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ miktar: cikisMiktari, aciklama })
+                        body: JSON.stringify({ 
+                            miktar: cikisMiktari, 
+                            aciklama: aciklama 
+                        })
                     });
+
+                    console.log('API yanıtı:', response);
 
                     if (!response.ok) {
                         const error = await response.json();
                         throw new Error(error.message || 'Stok çıkışı yapılamadı');
                     }
+
+                    const result = await response.json();
+                    console.log('İşlem başarılı:', result);
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -1160,7 +1214,7 @@
                             <div class="stok-card-body">
                                 <div class="stok-info-row">
                                     <span class="stok-info-label">Stok ID:</span>
-                                    <span class="stok-info-value">#${stok.id}</span>
+                                    <span class="stok-info-value">#${stok._id}</span>
                                 </div>
                                 <div class="stok-info-row">
                                     <span class="stok-info-label">Miktar:</span>
@@ -1184,10 +1238,10 @@
                                 </div>
                             </div>
                             <div class="stok-card-footer">
-                                <button class="btn-giris" onclick="stokTakip.girisModalAc(${stok.id})">Giriş</button>
-                                <button class="btn-cikis" onclick="stokTakip.cikisModalAc(${stok.id})">Çıkış</button>
-                                <button class="btn-guncelle" onclick="stokTakip.guncelleModalAc(${stok.id})">Güncelle</button>
-                                <button class="btn-sil" onclick="stokTakip.stokSil(${stok.id})">Sil</button>
+                                <button class="btn-giris" onclick="stokTakip.girisModalAc('${stok._id}')">Giriş</button>
+                                <button class="btn-cikis" onclick="stokTakip.cikisModalAc('${stok._id}')">Çıkış</button>
+                                <button class="btn-guncelle" onclick="stokTakip.guncelleModalAc('${stok._id}')">Güncelle</button>
+                                <button class="btn-sil" onclick="stokTakip.stokSil('${stok._id}')">Sil</button>
                             </div>
                         </div>
                     `;
@@ -1218,7 +1272,7 @@
                     
                     const row = `
                         <tr>
-                            <td>${stok.id}</td>
+                            <td>${stok._id}</td>
                             <td>${stok.ad}</td>
                             <td>${stok.kategori}</td>
                             <td>${stok.miktar}</td>
@@ -1226,10 +1280,10 @@
                             <td>₺${this.paraFormat(toplamDeger)}</td>
                             <td><span class="${durum.class}" style="color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${durum.text}</span></td>
                             <td>
-                                <button class="btn-giris" onclick="stokTakip.girisModalAc(${stok.id})">Giriş</button>
-                                <button class="btn-cikis" onclick="stokTakip.cikisModalAc(${stok.id})">Çıkış</button>
-                                <button class="btn-guncelle" onclick="stokTakip.guncelleModalAc(${stok.id})">Güncelle</button>
-                                <button class="btn-sil" onclick="stokTakip.stokSil(${stok.id})">Sil</button>
+                                <button class="btn-giris" onclick="stokTakip.girisModalAc('${stok._id}')">Giriş</button>
+                                <button class="btn-cikis" onclick="stokTakip.cikisModalAc('${stok._id}')">Çıkış</button>
+                                <button class="btn-guncelle" onclick="stokTakip.guncelleModalAc('${stok._id}')">Güncelle</button>
+                                <button class="btn-sil" onclick="stokTakip.stokSil('${stok._id}')">Sil</button>
                             </td>
                         </tr>
                     `;
