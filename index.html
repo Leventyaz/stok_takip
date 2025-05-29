@@ -583,6 +583,131 @@
             color: #7f8c8d;
             text-align: center;
         }
+
+        /* Şifre Modal Stilleri */
+        #sifreModal .modal-content {
+            max-width: 400px;
+        }
+
+        #sifreForm {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        #sifreInput {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        #sifreForm button {
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #sifreForm button:hover {
+            background-color: #2980b9;
+        }
+
+        /* Toast Bildirimleri */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        .toast {
+            background: white;
+            border-radius: 8px;
+            padding: 15px 25px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .toast.success {
+            border-left: 4px solid #27ae60;
+        }
+
+        .toast.error {
+            border-left: 4px solid #e74c3c;
+        }
+
+        .toast.info {
+            border-left: 4px solid #3498db;
+        }
+
+        .toast-icon {
+            font-size: 20px;
+        }
+
+        .toast-message {
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .toast-close {
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            z-index: 9998;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -763,6 +888,23 @@
         </div>
     </div>
 
+    <!-- Şifre Doğrulama Modal -->
+    <div id="sifreModal" class="modal">
+        <div class="modal-content">
+            <span class="close-sifre">&times;</span>
+            <h2>Şifre Doğrulama</h2>
+            <form id="sifreForm">
+                <input type="password" id="sifreInput" placeholder="İşlem şifresini giriniz" required>
+                <button type="submit">Doğrula</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
     <script>
         // Stok Takip Uygulaması
         class StokTakip {
@@ -772,45 +914,86 @@
                 this.hareketler = [];
                 this.stokHareketleriChart = null;
                 this.kategoriDagilimChart = null;
+                this.ISLEM_SIFRESI = "1234";
+                this.bekleyenIslem = null;
+                this.bekleyenModalTipi = null;
+                this.isLoading = false;
                 this.init();
-                this.initExcelImport();
             }
 
             async init() {
                 try {
                     this.elemanlariBagla();
                     this.eventListenerlarıEkle();
-                    this.gorunumDegistir(this.gorunumModu);
+                    this.gorunumDegistir('kart'); // Varsayılan görünüm olarak kart görünümünü ayarla
+                    
+                    // Verileri yükle ve sonucu bekle
                     await this.verileriYukle();
+                    console.log('Veriler yüklendi, stok sayısı:', this.stoklar.length);
+                    
+                    // Diğer işlemleri yap
                     this.grafikleriOlustur();
                     this.grafikleriGuncelle();
                     this.guncelle();
+                    this.initSifreModal();
+                    this.initExcelImport();
                 } catch (error) {
                     console.error('Başlatma hatası:', error);
-                    this.bildirimGoster('Sistem başlatılırken bir hata oluştu', 'error');
+                    this.bildirimGoster('Sistem başlatılırken bir hata oluştu: ' + error.message, 'error');
                 }
             }
 
             async verileriYukle() {
                 try {
                     console.log('Veriler yükleniyor...');
-                    const [stoklarRes, hareketlerRes] = await Promise.all([
-                        fetch(`${this.API_URL}/stoklar`),
-                        fetch(`${this.API_URL}/hareketler`)
-                    ]);
-                    
-                    if (!stoklarRes.ok || !hareketlerRes.ok) {
-                        throw new Error('Veri yükleme başarısız');
+                    console.log('Kullanılan API URL:', this.API_URL);
+
+                    // Stokları yükle
+                    const stoklarRes = await fetch(`${this.API_URL}/stoklar`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!stoklarRes.ok) {
+                        throw new Error(`Stoklar API hatası: ${stoklarRes.status} ${stoklarRes.statusText}`);
                     }
 
-                    this.stoklar = await stoklarRes.json();
-                    this.hareketler = await hareketlerRes.json();
-                    
-                    console.log('Yüklenen stoklar:', this.stoklar);
-                    console.log('Yüklenen hareketler:', this.hareketler);
+                    const stokData = await stoklarRes.json();
+                    console.log('Alınan stok verisi:', stokData);
+                    this.stoklar = Array.isArray(stokData) ? stokData : [];
+
+                    // Hareketleri yükle
+                    const hareketlerRes = await fetch(`${this.API_URL}/hareketler`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!hareketlerRes.ok) {
+                        throw new Error(`Hareketler API hatası: ${hareketlerRes.status} ${hareketlerRes.statusText}`);
+                    }
+
+                    const hareketData = await hareketlerRes.json();
+                    console.log('Alınan hareket verisi:', hareketData);
+                    this.hareketler = Array.isArray(hareketData) ? hareketData : [];
+
+                    // Yüklenen veri durumunu kontrol et
+                    console.log('Veri yükleme durumu:', {
+                        stokSayisi: this.stoklar.length,
+                        hareketSayisi: this.hareketler.length
+                    });
+
                 } catch (error) {
                     console.error('Veri yükleme hatası:', error);
-                    this.bildirimGoster('Veriler yüklenirken bir hata oluştu', 'error');
+                    this.bildirimGoster('Veriler yüklenirken bir hata oluştu: ' + error.message, 'error');
+                    // Hata durumunda boş diziler ata
+                    this.stoklar = [];
+                    this.hareketler = [];
                 }
             }
 
@@ -833,6 +1016,9 @@
                 this.kartGorunumuBtn = document.getElementById('kartGorunumu');
                 this.tabloGorunumuBtn = document.getElementById('tabloGorunumu');
                 this.tabloGorunumuDiv = document.getElementById('tabloGorunumuDiv');
+                this.sifreModal = document.getElementById('sifreModal');
+                this.sifreForm = document.getElementById('sifreForm');
+                this.closeSifreModal = document.querySelector('.close-sifre');
             }
 
             eventListenerlarıEkle() {
@@ -851,6 +1037,13 @@
                     if (e.target === this.modal) this.modalKapat();
                     if (e.target === this.girisModal) this.girisModalKapat();
                     if (e.target === this.cikisModal) this.cikisModalKapat();
+                });
+                this.sifreForm.addEventListener('submit', (e) => this.sifreDogrula(e));
+                this.closeSifreModal.addEventListener('click', () => this.sifreModalKapat());
+                window.addEventListener('click', (e) => {
+                    if (e.target === this.sifreModal) {
+                        this.sifreModalKapat();
+                    }
                 });
             }
 
@@ -873,6 +1066,8 @@
             }
 
             guncelle() {
+                console.log('Güncelleme başlıyor, mevcut stok sayısı:', this.stoklar.length);
+                
                 if (this.gorunumModu === 'kart') {
                     this.kartlariGuncelle();
                 } else {
@@ -913,6 +1108,11 @@
             async urunEkle(e) {
                 e.preventDefault();
                 
+                if (this.isLoading) {
+                    this.bildirimGoster('Lütfen önceki işlemin tamamlanmasını bekleyin', 'info');
+                    return;
+                }
+
                 const yeniUrun = {
                     ad: document.getElementById('urunAdi').value,
                     kategori: document.getElementById('kategori').value,
@@ -921,15 +1121,20 @@
                 };
 
                 try {
+                    this.showLoading();
                     const response = await fetch(`${this.API_URL}/stoklar`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(yeniUrun)
                     });
 
-                    if (!response.ok) throw new Error('Ürün eklenemedi');
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Ürün eklenemedi');
+                    }
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -937,7 +1142,9 @@
                     this.bildirimGoster('Ürün başarıyla eklendi!', 'success');
                 } catch (error) {
                     console.error('Ürün ekleme hatası:', error);
-                    this.bildirimGoster('Ürün eklenirken bir hata oluştu', 'error');
+                    this.bildirimGoster(error.message || 'Ürün eklenirken bir hata oluştu', 'error');
+                } finally {
+                    this.hideLoading();
                 }
             }
 
@@ -982,67 +1189,66 @@
 
             girisModalAc(id) {
                 console.log('Giriş modalı açılıyor, ID:', id);
-                const stok = this.stoklar.find(s => s._id === id);
-                if (stok) {
-                    document.getElementById('girisId').value = stok._id;
-                    document.getElementById('girisUrunAdi').textContent = stok.ad;
-                    document.getElementById('girisMevcutStok').textContent = stok.miktar;
-                    document.getElementById('girisMiktar').value = '';
-                    document.getElementById('girisAciklama').value = '';
-                    this.girisModal.style.display = 'block';
-                } else {
-                    console.error('Stok bulunamadı:', id);
-                    this.bildirimGoster('Ürün bulunamadı', 'error');
-                }
+                this.sifreModal.style.display = 'block';
+                this.bekleyenModalTipi = 'giris';
+                this.bekleyenIslem = async () => {
+                    const stok = this.stoklar.find(s => s._id === id);
+                    if (stok) {
+                        document.getElementById('girisId').value = stok._id;
+                        document.getElementById('girisUrunAdi').textContent = stok.ad;
+                        document.getElementById('girisMevcutStok').textContent = stok.miktar;
+                        document.getElementById('girisMiktar').value = '';
+                        document.getElementById('girisAciklama').value = '';
+                    } else {
+                        console.error('Stok bulunamadı:', id);
+                        this.bildirimGoster('Ürün bulunamadı', 'error');
+                    }
+                };
             }
 
             cikisModalAc(id) {
                 console.log('Çıkış modalı açılıyor, ID:', id);
-                const stok = this.stoklar.find(s => s._id === id);
-                if (stok) {
-                    document.getElementById('cikisId').value = stok._id;
-                    document.getElementById('cikisUrunAdi').textContent = stok.ad;
-                    document.getElementById('cikisMevcutStok').textContent = stok.miktar;
-                    document.getElementById('cikisMiktar').max = stok.miktar;
-                    document.getElementById('cikisMiktar').value = '';
-                    document.getElementById('cikisAciklama').value = '';
-                    this.cikisModal.style.display = 'block';
-                } else {
-                    console.error('Stok bulunamadı:', id);
-                    this.bildirimGoster('Ürün bulunamadı', 'error');
-                }
+                this.sifreModal.style.display = 'block';
+                this.bekleyenModalTipi = 'cikis';
+                this.bekleyenIslem = async () => {
+                    const stok = this.stoklar.find(s => s._id === id);
+                    if (stok) {
+                        document.getElementById('cikisId').value = stok._id;
+                        document.getElementById('cikisUrunAdi').textContent = stok.ad;
+                        document.getElementById('cikisMevcutStok').textContent = stok.miktar;
+                        document.getElementById('cikisMiktar').max = stok.miktar;
+                        document.getElementById('cikisMiktar').value = '';
+                        document.getElementById('cikisAciklama').value = '';
+                    } else {
+                        console.error('Stok bulunamadı:', id);
+                        this.bildirimGoster('Ürün bulunamadı', 'error');
+                    }
+                };
             }
 
             async stokGirisi(e) {
                 e.preventDefault();
                 
+                if (this.isLoading) {
+                    this.bildirimGoster('Lütfen önceki işlemin tamamlanmasını bekleyin', 'info');
+                    return;
+                }
+
                 const id = document.getElementById('girisId').value;
                 const girisMiktari = parseInt(document.getElementById('girisMiktar').value);
                 const aciklama = document.getElementById('girisAciklama').value;
-
-                console.log('Stok girişi başlatılıyor:', {
-                    id: id,
-                    miktar: girisMiktari,
-                    aciklama: aciklama
-                });
-
+                
                 try {
-                    // Miktar kontrolü
+                    this.showLoading();
                     if (girisMiktari <= 0) {
                         throw new Error('Giriş miktarı 0\'dan büyük olmalıdır');
                     }
 
-                    const stok = this.stoklar.find(s => s._id === id);
-                    if (!stok) {
-                        throw new Error('Ürün bulunamadı');
-                    }
-
-                    console.log('API isteği gönderiliyor:', `${this.API_URL}/stoklar/${id}/giris`);
-
                     const response = await fetch(`${this.API_URL}/stoklar/${id}/giris`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({ 
                             miktar: girisMiktari, 
@@ -1050,15 +1256,10 @@
                         })
                     });
 
-                    console.log('API yanıtı:', response);
-
                     if (!response.ok) {
                         const error = await response.json();
                         throw new Error(error.message || 'Stok girişi yapılamadı');
                     }
-
-                    const result = await response.json();
-                    console.log('İşlem başarılı:', result);
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -1067,43 +1268,34 @@
                 } catch (error) {
                     console.error('Stok giriş hatası:', error);
                     this.bildirimGoster(error.message || 'Stok girişi yapılırken bir hata oluştu', 'error');
+                } finally {
+                    this.hideLoading();
                 }
             }
 
             async stokCikisi(e) {
                 e.preventDefault();
                 
+                if (this.isLoading) {
+                    this.bildirimGoster('Lütfen önceki işlemin tamamlanmasını bekleyin', 'info');
+                    return;
+                }
+
                 const id = document.getElementById('cikisId').value;
                 const cikisMiktari = parseInt(document.getElementById('cikisMiktar').value);
                 const aciklama = document.getElementById('cikisAciklama').value;
-
-                console.log('Stok çıkışı başlatılıyor:', {
-                    id: id,
-                    miktar: cikisMiktari,
-                    aciklama: aciklama
-                });
-
+                
                 try {
-                    // Miktar kontrolü
+                    this.showLoading();
                     if (cikisMiktari <= 0) {
                         throw new Error('Çıkış miktarı 0\'dan büyük olmalıdır');
                     }
 
-                    const stok = this.stoklar.find(s => s._id === id);
-                    if (!stok) {
-                        throw new Error('Ürün bulunamadı');
-                    }
-
-                    if (cikisMiktari > stok.miktar) {
-                        throw new Error('Çıkış miktarı mevcut stoktan fazla olamaz');
-                    }
-
-                    console.log('API isteği gönderiliyor:', `${this.API_URL}/stoklar/${id}/cikis`);
-
                     const response = await fetch(`${this.API_URL}/stoklar/${id}/cikis`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({ 
                             miktar: cikisMiktari, 
@@ -1111,15 +1303,10 @@
                         })
                     });
 
-                    console.log('API yanıtı:', response);
-
                     if (!response.ok) {
                         const error = await response.json();
                         throw new Error(error.message || 'Stok çıkışı yapılamadı');
                     }
-
-                    const result = await response.json();
-                    console.log('İşlem başarılı:', result);
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -1128,6 +1315,8 @@
                 } catch (error) {
                     console.error('Stok çıkış hatası:', error);
                     this.bildirimGoster(error.message || 'Stok çıkışı yapılırken bir hata oluştu', 'error');
+                } finally {
+                    this.hideLoading();
                 }
             }
 
@@ -1187,6 +1376,12 @@
                 const aramaMetni = this.aramaKutusu.value.toLowerCase();
                 const secilenKategori = this.kategoriFiltre.value;
                 
+                console.log('Kart güncellemesi başlıyor:', {
+                    stokSayisi: this.stoklar.length,
+                    aramaMetni: aramaMetni,
+                    secilenKategori: secilenKategori
+                });
+                
                 let filtrelenmisStoklar = this.stoklar.filter(stok => {
                     const adUygun = stok.ad.toLowerCase().includes(aramaMetni);
                     const kategoriUygun = !secilenKategori || stok.kategori === secilenKategori;
@@ -1196,9 +1391,15 @@
                 this.stokKartlari.innerHTML = '';
                 
                 if (filtrelenmisStoklar.length === 0) {
-                    this.stokKartlari.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #7f8c8d;">Stok bulunamadı.</div>';
+                    if (this.stoklar.length === 0) {
+                        this.stokKartlari.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #7f8c8d;">Henüz stok bulunmuyor.</div>';
+                    } else {
+                        this.stokKartlari.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #7f8c8d;">Arama kriterlerine uygun stok bulunamadı.</div>';
+                    }
                     return;
                 }
+
+                console.log('Filtrelenmiş stok sayısı:', filtrelenmisStoklar.length);
 
                 filtrelenmisStoklar.forEach(stok => {
                     const toplamDeger = stok.miktar * stok.fiyat;
@@ -1253,6 +1454,12 @@
                 const aramaMetni = this.aramaKutusu.value.toLowerCase();
                 const secilenKategori = this.kategoriFiltre.value;
                 
+                console.log('Tablo güncellemesi başlıyor:', {
+                    stokSayisi: this.stoklar.length,
+                    aramaMetni: aramaMetni,
+                    secilenKategori: secilenKategori
+                });
+                
                 let filtrelenmisStoklar = this.stoklar.filter(stok => {
                     const adUygun = stok.ad.toLowerCase().includes(aramaMetni);
                     const kategoriUygun = !secilenKategori || stok.kategori === secilenKategori;
@@ -1262,9 +1469,15 @@
                 this.stokListesi.innerHTML = '';
                 
                 if (filtrelenmisStoklar.length === 0) {
-                    this.stokListesi.innerHTML = '<tr><td colspan="8" style="text-align: center;">Stok bulunamadı.</td></tr>';
+                    if (this.stoklar.length === 0) {
+                        this.stokListesi.innerHTML = '<tr><td colspan="8" style="text-align: center;">Henüz stok bulunmuyor.</td></tr>';
+                    } else {
+                        this.stokListesi.innerHTML = '<tr><td colspan="8" style="text-align: center;">Arama kriterlerine uygun stok bulunamadı.</td></tr>';
+                    }
                     return;
                 }
+
+                console.log('Filtrelenmiş stok sayısı:', filtrelenmisStoklar.length);
 
                 filtrelenmisStoklar.forEach(stok => {
                     const toplamDeger = stok.miktar * stok.fiyat;
@@ -1552,7 +1765,35 @@
             }
 
             bildirimGoster(mesaj, tip) {
-                console.log(`${tip}: ${mesaj}`);
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                toast.className = `toast ${tip}`;
+                
+                let icon = '🔔';
+                if (tip === 'success') icon = '✅';
+                if (tip === 'error') icon = '❌';
+                if (tip === 'info') icon = 'ℹ️';
+
+                toast.innerHTML = `
+                    <span class="toast-icon">${icon}</span>
+                    <span class="toast-message">${mesaj}</span>
+                    <span class="toast-close">✕</span>
+                `;
+
+                container.appendChild(toast);
+
+                // Close button functionality
+                const closeBtn = toast.querySelector('.toast-close');
+                closeBtn.addEventListener('click', () => {
+                    toast.remove();
+                });
+
+                // Auto remove after 5 seconds
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
             }
 
             initExcelImport() {
@@ -1679,6 +1920,65 @@
                     reader.onerror = () => reject(new Error('Dosya okuma hatası'));
                     reader.readAsArrayBuffer(file);
                 });
+            }
+
+            initSifreModal() {
+                if (!this.sifreForm || !this.closeSifreModal) {
+                    console.error('Şifre modal elemanları bulunamadı');
+                    return;
+                }
+
+                this.sifreForm.addEventListener('submit', (e) => this.sifreDogrula(e));
+                this.closeSifreModal.addEventListener('click', () => this.sifreModalKapat());
+                window.addEventListener('click', (e) => {
+                    if (e.target === this.sifreModal) {
+                        this.sifreModalKapat();
+                    }
+                });
+            }
+
+            sifreModalKapat() {
+                if (this.sifreModal) {
+                    this.sifreModal.style.display = 'none';
+                    document.getElementById('sifreInput').value = '';
+                }
+                // Bekleyen işlemi iptal etme
+                this.bekleyenIslem = null;
+                this.bekleyenModalTipi = null;
+            }
+
+            async sifreDogrula(e) {
+                e.preventDefault();
+                const girilenSifre = document.getElementById('sifreInput').value;
+                
+                if (girilenSifre === this.ISLEM_SIFRESI) {
+                    this.sifreModal.style.display = 'none';
+                    document.getElementById('sifreInput').value = '';
+                    
+                    if (this.bekleyenIslem) {
+                        await this.bekleyenIslem();
+                        
+                        // Şifre doğrulandıktan sonra ilgili modalı aç
+                        if (this.bekleyenModalTipi === 'giris') {
+                            this.girisModal.style.display = 'block';
+                        } else if (this.bekleyenModalTipi === 'cikis') {
+                            this.cikisModal.style.display = 'block';
+                        }
+                    }
+                } else {
+                    this.bildirimGoster('Hatalı şifre!', 'error');
+                    document.getElementById('sifreInput').value = '';
+                }
+            }
+
+            showLoading() {
+                this.isLoading = true;
+                document.getElementById('loadingOverlay').style.display = 'flex';
+            }
+
+            hideLoading() {
+                this.isLoading = false;
+                document.getElementById('loadingOverlay').style.display = 'none';
             }
         }
 
