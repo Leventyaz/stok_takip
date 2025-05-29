@@ -643,18 +643,35 @@
         // Stok Takip Uygulaması
         class StokTakip {
             constructor() {
-                this.stoklar = JSON.parse(localStorage.getItem('stoklar')) || [];
-                this.hareketler = JSON.parse(localStorage.getItem('stokHareketleri')) || [];
-                this.idSayaci = this.stoklar.length > 0 ? Math.max(...this.stoklar.map(s => s.id)) + 1 : 1;
+                this.API_URL = 'https://your-vercel-app-url.vercel.app/api'; // Vercel'da deploy edildiğinde güncellenecek
+                this.stoklar = [];
+                this.hareketler = [];
+                this.idSayaci = 1;
                 this.gorunumModu = localStorage.getItem('gorunumModu') || 'kart';
                 this.init();
             }
 
-            init() {
+            async init() {
                 this.elemanlariBagla();
                 this.eventListenerlarıEkle();
                 this.gorunumDegistir(this.gorunumModu);
+                await this.verileriYukle();
                 this.guncelle();
+            }
+
+            async verileriYukle() {
+                try {
+                    const [stoklarRes, hareketlerRes] = await Promise.all([
+                        fetch(`${this.API_URL}/stoklar`),
+                        fetch(`${this.API_URL}/hareketler`)
+                    ]);
+                    
+                    this.stoklar = await stoklarRes.json();
+                    this.hareketler = await hareketlerRes.json();
+                } catch (error) {
+                    console.error('Veri yükleme hatası:', error);
+                    this.bildirimGoster('Veriler yüklenirken bir hata oluştu', 'error');
+                }
             }
 
             elemanlariBagla() {
@@ -752,34 +769,53 @@
                 localStorage.setItem('stokHareketleri', JSON.stringify(this.hareketler));
             }
 
-            urunEkle(e) {
+            async urunEkle(e) {
                 e.preventDefault();
                 
                 const yeniUrun = {
-                    id: this.idSayaci++,
                     ad: document.getElementById('urunAdi').value,
                     kategori: document.getElementById('kategori').value,
                     miktar: parseInt(document.getElementById('miktar').value),
-                    fiyat: parseFloat(document.getElementById('fiyat').value),
-                    tarih: new Date().toLocaleDateString('tr-TR')
+                    fiyat: parseFloat(document.getElementById('fiyat').value)
                 };
 
-                this.stoklar.push(yeniUrun);
-                
-                this.hareketKaydet(yeniUrun, 'GİRİŞ', yeniUrun.miktar, 0, yeniUrun.miktar, 'Yeni ürün girişi');
-                
-                this.kaydet();
-                this.guncelle();
-                this.urunForm.reset();
-                this.bildirimGoster('Ürün başarıyla eklendi!', 'success');
+                try {
+                    const response = await fetch(`${this.API_URL}/stoklar`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(yeniUrun)
+                    });
+
+                    if (!response.ok) throw new Error('Ürün eklenemedi');
+
+                    await this.verileriYukle();
+                    this.guncelle();
+                    this.urunForm.reset();
+                    this.bildirimGoster('Ürün başarıyla eklendi!', 'success');
+                } catch (error) {
+                    console.error('Ürün ekleme hatası:', error);
+                    this.bildirimGoster('Ürün eklenirken bir hata oluştu', 'error');
+                }
             }
 
-            stokSil(id) {
+            async stokSil(id) {
                 if (confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
-                    this.stoklar = this.stoklar.filter(stok => stok.id !== id);
-                    this.kaydet();
-                    this.guncelle();
-                    this.bildirimGoster('Ürün başarıyla silindi!', 'success');
+                    try {
+                        const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (!response.ok) throw new Error('Ürün silinemedi');
+
+                        await this.verileriYukle();
+                        this.guncelle();
+                        this.bildirimGoster('Ürün başarıyla silindi!', 'success');
+                    } catch (error) {
+                        console.error('Ürün silme hatası:', error);
+                        this.bildirimGoster('Ürün silinirken bir hata oluştu', 'error');
+                    }
                 }
             }
 
@@ -820,106 +856,94 @@
                 }
             }
 
-            stokGirisi(e) {
+            async stokGirisi(e) {
                 e.preventDefault();
                 
-                const id = parseInt(document.getElementById('girisId').value);
+                const id = document.getElementById('girisId').value;
                 const girisMiktari = parseInt(document.getElementById('girisMiktar').value);
                 const aciklama = document.getElementById('girisAciklama').value;
-                
-                const stokIndex = this.stoklar.findIndex(s => s.id === id);
-                
-                if (stokIndex !== -1) {
-                    const oncekiMiktar = this.stoklar[stokIndex].miktar;
-                    const yeniMiktar = oncekiMiktar + girisMiktari;
-                    
-                    this.hareketKaydet(
-                        this.stoklar[stokIndex], 
-                        'GİRİŞ', 
-                        girisMiktari, 
-                        oncekiMiktar, 
-                        yeniMiktar, 
-                        aciklama || 'Stok girişi'
-                    );
-                    
-                    this.stoklar[stokIndex].miktar = yeniMiktar;
-                    
-                    this.kaydet();
+
+                try {
+                    const response = await fetch(`${this.API_URL}/stoklar/${id}/giris`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ miktar: girisMiktari, aciklama })
+                    });
+
+                    if (!response.ok) throw new Error('Stok girişi yapılamadı');
+
+                    await this.verileriYukle();
                     this.guncelle();
                     this.girisModalKapat();
                     this.bildirimGoster('Stok girişi başarıyla yapıldı!', 'success');
+                } catch (error) {
+                    console.error('Stok giriş hatası:', error);
+                    this.bildirimGoster('Stok girişi yapılırken bir hata oluştu', 'error');
                 }
             }
 
-            stokCikisi(e) {
+            async stokCikisi(e) {
                 e.preventDefault();
                 
-                const id = parseInt(document.getElementById('cikisId').value);
+                const id = document.getElementById('cikisId').value;
                 const cikisMiktari = parseInt(document.getElementById('cikisMiktar').value);
                 const aciklama = document.getElementById('cikisAciklama').value;
-                
-                const stokIndex = this.stoklar.findIndex(s => s.id === id);
-                
-                if (stokIndex !== -1) {
-                    const oncekiMiktar = this.stoklar[stokIndex].miktar;
-                    const yeniMiktar = oncekiMiktar - cikisMiktari;
-                    
-                    if (yeniMiktar < 0) {
-                        alert('Yetersiz stok!');
-                        return;
+
+                try {
+                    const response = await fetch(`${this.API_URL}/stoklar/${id}/cikis`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ miktar: cikisMiktari, aciklama })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Stok çıkışı yapılamadı');
                     }
-                    
-                    this.hareketKaydet(
-                        this.stoklar[stokIndex], 
-                        'ÇIKIŞ', 
-                        cikisMiktari, 
-                        oncekiMiktar, 
-                        yeniMiktar, 
-                        aciklama || 'Stok çıkışı'
-                    );
-                    
-                    this.stoklar[stokIndex].miktar = yeniMiktar;
-                    
-                    this.kaydet();
+
+                    await this.verileriYukle();
                     this.guncelle();
                     this.cikisModalKapat();
                     this.bildirimGoster('Stok çıkışı başarıyla yapıldı!', 'success');
+                } catch (error) {
+                    console.error('Stok çıkış hatası:', error);
+                    this.bildirimGoster(error.message || 'Stok çıkışı yapılırken bir hata oluştu', 'error');
                 }
             }
 
-            stokGuncelle(e) {
+            async stokGuncelle(e) {
                 e.preventDefault();
                 
-                const id = parseInt(document.getElementById('guncelleId').value);
-                const stokIndex = this.stoklar.findIndex(s => s.id === id);
-                
-                if (stokIndex !== -1) {
-                    const oncekiMiktar = this.stoklar[stokIndex].miktar;
-                    const yeniMiktar = parseInt(document.getElementById('guncelleMiktar').value);
-                    
-                    this.stoklar[stokIndex] = {
-                        ...this.stoklar[stokIndex],
-                        ad: document.getElementById('guncelleAdi').value,
-                        kategori: document.getElementById('guncelleKategori').value,
-                        miktar: yeniMiktar,
-                        fiyat: parseFloat(document.getElementById('guncelleFiyat').value)
-                    };
-                    
-                    if (oncekiMiktar !== yeniMiktar) {
-                        this.hareketKaydet(
-                            this.stoklar[stokIndex], 
-                            'GÜNCELLEME', 
-                            Math.abs(yeniMiktar - oncekiMiktar), 
-                            oncekiMiktar, 
-                            yeniMiktar, 
-                            'Manuel güncelleme'
-                        );
-                    }
-                    
-                    this.kaydet();
+                const id = document.getElementById('guncelleId').value;
+                const guncelStok = {
+                    ad: document.getElementById('guncelleAdi').value,
+                    kategori: document.getElementById('guncelleKategori').value,
+                    miktar: parseInt(document.getElementById('guncelleMiktar').value),
+                    fiyat: parseFloat(document.getElementById('guncelleFiyat').value)
+                };
+
+                try {
+                    const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(guncelStok)
+                    });
+
+                    if (!response.ok) throw new Error('Stok güncellenemedi');
+
+                    await this.verileriYukle();
                     this.guncelle();
                     this.modalKapat();
                     this.bildirimGoster('Stok başarıyla güncellendi!', 'success');
+                } catch (error) {
+                    console.error('Stok güncelleme hatası:', error);
+                    this.bildirimGoster('Stok güncellenirken bir hata oluştu', 'error');
                 }
             }
 
@@ -1097,10 +1121,6 @@
                 document.getElementById('toplamStok').textContent = toplamStok;
                 document.getElementById('toplamDeger').textContent = `₺${this.paraFormat(toplamDeger)}`;
                 document.getElementById('kritikStok').textContent = kritikStok;
-            }
-
-            kaydet() {
-                localStorage.setItem('stoklar', JSON.stringify(this.stoklar));
             }
 
             bildirimGoster(mesaj, tip) {
