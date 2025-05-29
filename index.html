@@ -684,39 +684,50 @@
         // Stok Takip Uygulaması
         class StokTakip {
             constructor() {
-                this.API_URL = 'https://stok-takip-hipd.vercel.app/api'; // Vercel'da deploy edildiğinde güncellenecek
+                this.API_URL = 'https://stok-takip-hipd.vercel.app/api';
                 this.stoklar = [];
                 this.hareketler = [];
-                this.idSayaci = 1;
-                this.gorunumModu = localStorage.getItem('gorunumModu') || 'kart';
                 this.stokHareketleriChart = null;
                 this.kategoriDagilimChart = null;
                 this.init();
             }
 
             async init() {
-                this.elemanlariBagla();
-                this.eventListenerlarıEkle();
-                this.gorunumDegistir(this.gorunumModu);
-                await this.verileriYukle();
-                this.guncelle();
-                this.grafikleriOlustur();
+                try {
+                    this.elemanlariBagla();
+                    this.eventListenerlarıEkle();
+                    this.gorunumDegistir(this.gorunumModu);
+                    await this.verileriYukle();
+                    this.grafikleriOlustur();
+                    this.grafikleriGuncelle();
+                    this.guncelle();
+                } catch (error) {
+                    console.error('Başlatma hatası:', error);
+                    this.bildirimGoster('Sistem başlatılırken bir hata oluştu', 'error');
+                }
             }
 
             async verileriYukle() {
                 try {
+                    console.log('Veriler yükleniyor...');
                     const [stoklarRes, hareketlerRes] = await Promise.all([
                         fetch(`${this.API_URL}/stoklar`),
                         fetch(`${this.API_URL}/hareketler`)
                     ]);
                     
+                    if (!stoklarRes.ok || !hareketlerRes.ok) {
+                        throw new Error('Veri yükleme başarısız');
+                    }
+
                     this.stoklar = await stoklarRes.json();
                     this.hareketler = await hareketlerRes.json();
+                    
+                    console.log('Yüklenen stoklar:', this.stoklar);
+                    console.log('Yüklenen hareketler:', this.hareketler);
                 } catch (error) {
                     console.error('Veri yükleme hatası:', error);
                     this.bildirimGoster('Veriler yüklenirken bir hata oluştu', 'error');
                 }
-                await this.grafikleriGuncelle();
             }
 
             elemanlariBagla() {
@@ -1170,127 +1181,185 @@
             }
 
             grafikleriOlustur() {
-                // Aylık stok hareketleri grafiği
-                const stokHareketleriCtx = document.getElementById('stokHareketleriChart').getContext('2d');
-                this.stokHareketleriChart = new Chart(stokHareketleriCtx, {
-                    type: 'line',
-                    data: {
-                        labels: [],
-                        datasets: [
-                            {
-                                label: 'Giriş',
-                                borderColor: '#27ae60',
-                                backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                                data: [],
-                                fill: true
-                            },
-                            {
-                                label: 'Çıkış',
-                                borderColor: '#e74c3c',
-                                backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                                data: [],
-                                fill: true
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            title: {
-                                display: false
-                            },
-                            legend: {
-                                position: 'bottom'
-                            }
+                try {
+                    console.log('Grafikler oluşturuluyor...');
+                    const stokHareketleriCtx = document.getElementById('stokHareketleriChart');
+                    const kategoriDagilimCtx = document.getElementById('kategoriDagilimChart');
+
+                    if (!stokHareketleriCtx || !kategoriDagilimCtx) {
+                        throw new Error('Grafik canvas elementleri bulunamadı');
+                    }
+
+                    // Eğer grafikler zaten varsa yok et
+                    if (this.stokHareketleriChart) {
+                        this.stokHareketleriChart.destroy();
+                    }
+                    if (this.kategoriDagilimChart) {
+                        this.kategoriDagilimChart.destroy();
+                    }
+
+                    this.stokHareketleriChart = new Chart(stokHareketleriCtx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Giriş',
+                                    borderColor: '#27ae60',
+                                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                                    data: [],
+                                    fill: true,
+                                    tension: 0.4
+                                },
+                                {
+                                    label: 'Çıkış',
+                                    borderColor: '#e74c3c',
+                                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                                    data: [],
+                                    fill: true,
+                                    tension: 0.4
+                                }
+                            ]
                         },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
                                 title: {
-                                    display: true,
-                                    text: 'Miktar'
+                                    display: false
+                                },
+                                legend: {
+                                    position: 'bottom'
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Miktar'
+                                    }
                                 }
                             }
                         }
-                    }
-                });
+                    });
 
-                // Kategori dağılımı grafiği
-                const kategoriDagilimCtx = document.getElementById('kategoriDagilimChart').getContext('2d');
-                this.kategoriDagilimChart = new Chart(kategoriDagilimCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: [],
-                        datasets: [{
-                            data: [],
-                            backgroundColor: [
-                                '#3498db',
-                                '#e74c3c',
-                                '#2ecc71',
-                                '#f1c40f',
-                                '#9b59b6',
-                                '#e67e22',
-                                '#1abc9c',
-                                '#34495e'
-                            ]
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'bottom'
+                    this.kategoriDagilimChart = new Chart(kategoriDagilimCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                data: [],
+                                backgroundColor: [
+                                    '#3498db',
+                                    '#e74c3c',
+                                    '#2ecc71',
+                                    '#f1c40f',
+                                    '#9b59b6',
+                                    '#e67e22',
+                                    '#1abc9c',
+                                    '#34495e'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
                             }
                         }
-                    }
-                });
+                    });
+
+                    console.log('Grafikler başarıyla oluşturuldu');
+                } catch (error) {
+                    console.error('Grafik oluşturma hatası:', error);
+                }
             }
 
             grafikleriGuncelle() {
-                // Aylık stok hareketleri için veri hazırla
-                const sonAltıAy = new Array(6).fill(0).map((_, i) => {
-                    const d = new Date();
-                    d.setMonth(d.getMonth() - i);
-                    return d.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
-                }).reverse();
+                try {
+                    console.log('Grafikler güncelleniyor...');
+                    if (!this.stokHareketleriChart || !this.kategoriDagilimChart) {
+                        console.log('Grafikler henüz oluşturulmamış');
+                        return;
+                    }
 
-                const girisVerileri = new Array(6).fill(0);
-                const cikisVerileri = new Array(6).fill(0);
+                    // Aylık stok hareketleri için veri hazırla
+                    const sonAltıAy = new Array(6).fill(0).map((_, i) => {
+                        const d = new Date();
+                        d.setMonth(d.getMonth() - i);
+                        return d.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+                    }).reverse();
 
-                this.hareketler.forEach(hareket => {
-                    const hareketTarihi = new Date(hareket.tarih.split(' ')[0]);
-                    const ayYil = hareketTarihi.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
-                    const index = sonAltıAy.indexOf(ayYil);
-                    
-                    if (index !== -1) {
-                        if (hareket.islemTipi === 'GİRİŞ') {
-                            girisVerileri[index] += hareket.miktar;
-                        } else if (hareket.islemTipi === 'ÇIKIŞ') {
-                            cikisVerileri[index] += hareket.miktar;
+                    const girisVerileri = new Array(6).fill(0);
+                    const cikisVerileri = new Array(6).fill(0);
+
+                    console.log('İşlenecek hareketler:', this.hareketler);
+
+                    this.hareketler.forEach(hareket => {
+                        try {
+                            const tarihParcalari = hareket.tarih.split(' ')[0].split('.');
+                            const hareketTarihi = new Date(
+                                parseInt(tarihParcalari[2]), // yıl
+                                parseInt(tarihParcalari[1]) - 1, // ay (0-11)
+                                parseInt(tarihParcalari[0]) // gün
+                            );
+                            
+                            const ayYil = hareketTarihi.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+                            const index = sonAltıAy.indexOf(ayYil);
+                            
+                            if (index !== -1) {
+                                if (hareket.islemTipi === 'GİRİŞ') {
+                                    girisVerileri[index] += hareket.miktar;
+                                } else if (hareket.islemTipi === 'ÇIKIŞ') {
+                                    cikisVerileri[index] += hareket.miktar;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Hareket işleme hatası:', e, hareket);
                         }
-                    }
-                });
+                    });
 
-                // Stok hareketleri grafiğini güncelle
-                this.stokHareketleriChart.data.labels = sonAltıAy;
-                this.stokHareketleriChart.data.datasets[0].data = girisVerileri;
-                this.stokHareketleriChart.data.datasets[1].data = cikisVerileri;
-                this.stokHareketleriChart.update();
+                    console.log('Hazırlanan veriler:', {
+                        aylar: sonAltıAy,
+                        girisler: girisVerileri,
+                        cikislar: cikisVerileri
+                    });
 
-                // Kategori dağılımı için veri hazırla
-                const kategoriVerileri = {};
-                this.stoklar.forEach(stok => {
-                    if (kategoriVerileri[stok.kategori]) {
-                        kategoriVerileri[stok.kategori] += stok.miktar;
-                    } else {
-                        kategoriVerileri[stok.kategori] = stok.miktar;
-                    }
-                });
+                    // Stok hareketleri grafiğini güncelle
+                    this.stokHareketleriChart.data.labels = sonAltıAy;
+                    this.stokHareketleriChart.data.datasets[0].data = girisVerileri;
+                    this.stokHareketleriChart.data.datasets[1].data = cikisVerileri;
+                    this.stokHareketleriChart.update();
 
-                // Kategori dağılımı grafiğini güncelle
-                this.kategoriDagilimChart.data.labels = Object.keys(kategoriVerileri);
-                this.kategoriDagilimChart.data.datasets[0].data = Object.values(kategoriVerileri);
-                this.kategoriDagilimChart.update();
+                    // Kategori dağılımı için veri hazırla
+                    const kategoriVerileri = {};
+                    this.stoklar.forEach(stok => {
+                        if (kategoriVerileri[stok.kategori]) {
+                            kategoriVerileri[stok.kategori] += stok.miktar;
+                        } else {
+                            kategoriVerileri[stok.kategori] = stok.miktar;
+                        }
+                    });
+
+                    console.log('Kategori verileri:', kategoriVerileri);
+
+                    // Kategori dağılımı grafiğini güncelle
+                    this.kategoriDagilimChart.data.labels = Object.keys(kategoriVerileri);
+                    this.kategoriDagilimChart.data.datasets[0].data = Object.values(kategoriVerileri);
+                    this.kategoriDagilimChart.update();
+
+                    console.log('Grafikler başarıyla güncellendi');
+                } catch (error) {
+                    console.error('Grafik güncelleme hatası:', error);
+                }
             }
 
             bildirimGoster(mesaj, tip) {
