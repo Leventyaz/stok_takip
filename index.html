@@ -1388,42 +1388,57 @@
             }
 
             async stokSil(id) {
-                if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-                    this.bildirimGoster('Geçersiz ürün ID', 'error');
-                    return;
-                }
-
-                if (confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
-                    try {
-                        const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
-                            method: 'DELETE'
-                        });
-
-                        if (!response.ok) {
-                            const error = await response.json();
-                            throw new Error(error.message || 'Ürün silinemedi');
-                        }
-
-                        await this.verileriYukle();
-                        this.guncelle();
-                        this.bildirimGoster('Ürün başarıyla silindi!', 'success');
-                    } catch (error) {
-                        console.error('Ürün silme hatası:', error);
-                        this.bildirimGoster(error.message || 'Ürün silinirken bir hata oluştu', 'error');
+                this.sifreModal.style.display = 'block';
+                this.bekleyenModalTipi = 'sil';
+                this.bekleyenIslem = async () => {
+                    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+                        this.bildirimGoster('Geçersiz ürün ID', 'error');
+                        return;
                     }
-                }
+
+                    if (confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
+                        try {
+                            this.showLoading();
+                            const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
+                                method: 'DELETE'
+                            });
+
+                            if (!response.ok) {
+                                const error = await response.json();
+                                throw new Error(error.message || 'Ürün silinemedi');
+                            }
+
+                            await this.verileriYukle();
+                            this.guncelle();
+                            this.bildirimGoster('Ürün başarıyla silindi!', 'success');
+                        } catch (error) {
+                            console.error('Ürün silme hatası:', error);
+                            this.bildirimGoster(error.message || 'Ürün silinirken bir hata oluştu', 'error');
+                        } finally {
+                            this.hideLoading();
+                        }
+                    }
+                };
             }
 
             guncelleModalAc(id) {
-                const stok = this.stoklar.find(s => s.id === id);
-                if (stok) {
-                    document.getElementById('guncelleId').value = stok.id;
-                    document.getElementById('guncelleAdi').value = stok.ad;
-                    document.getElementById('guncelleKategori').value = stok.kategori;
-                    document.getElementById('guncelleMiktar').value = stok.miktar;
-                    document.getElementById('guncelleFiyat').value = stok.fiyat;
-                    this.modal.style.display = 'block';
-                }
+                console.log('Güncelleme modalı açılıyor, ID:', id);
+                this.sifreModal.style.display = 'block';
+                this.bekleyenModalTipi = 'guncelle';
+                this.bekleyenIslem = async () => {
+                    const stok = this.stoklar.find(s => s._id === id);
+                    if (stok) {
+                        document.getElementById('guncelleId').value = stok._id;
+                        document.getElementById('guncelleAdi').value = stok.ad;
+                        document.getElementById('guncelleKategori').value = stok.kategori;
+                        document.getElementById('guncelleMiktar').value = stok.miktar;
+                        document.getElementById('guncelleFiyat').value = stok.fiyat;
+                        this.modal.style.display = 'block';
+                    } else {
+                        console.error('Stok bulunamadı:', id);
+                        this.bildirimGoster('Ürün bulunamadı', 'error');
+                    }
+                };
             }
 
             girisModalAc(id) {
@@ -1562,6 +1577,11 @@
             async stokGuncelle(e) {
                 e.preventDefault();
                 
+                if (this.isLoading) {
+                    this.bildirimGoster('Lütfen önceki işlemin tamamlanmasını bekleyin', 'info');
+                    return;
+                }
+
                 const id = document.getElementById('guncelleId').value;
                 const guncelStok = {
                     ad: document.getElementById('guncelleAdi').value,
@@ -1569,9 +1589,10 @@
                     miktar: parseInt(document.getElementById('guncelleMiktar').value),
                     fiyat: parseFloat(document.getElementById('guncelleFiyat').value)
                 };
-
+                
                 try {
-                    // MongoDB ObjectId kontrolü
+                    this.showLoading();
+                    
                     if (!id.match(/^[0-9a-fA-F]{24}$/)) {
                         throw new Error('Geçersiz ürün ID');
                     }
@@ -1579,7 +1600,8 @@
                     const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
                         method: 'PUT',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(guncelStok)
                     });
@@ -1596,6 +1618,8 @@
                 } catch (error) {
                     console.error('Stok güncelleme hatası:', error);
                     this.bildirimGoster(error.message || 'Stok güncellenirken bir hata oluştu', 'error');
+                } finally {
+                    this.hideLoading();
                 }
             }
 
@@ -2173,6 +2197,10 @@
                             this.girisModal.style.display = 'block';
                         } else if (this.bekleyenModalTipi === 'cikis') {
                             this.cikisModal.style.display = 'block';
+                        } else if (this.bekleyenModalTipi === 'guncelle') {
+                            // Güncelleme modalı zaten bekleyen işlem içinde açılıyor
+                        } else if (this.bekleyenModalTipi === 'sil') {
+                            // Silme işlemi zaten bekleyen işlem içinde yapılıyor
                         }
                     }
                 } else {
