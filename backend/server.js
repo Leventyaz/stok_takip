@@ -22,41 +22,85 @@ const client = new MongoClient(uri, {
 
 let db;
 
-async function connectToMongo() {
+async function startServer() {
   try {
+    // MongoDB'ye bağlan
     await client.connect();
+    console.log("MongoDB'ye bağlanılıyor...");
+    
+    // Ping ile bağlantıyı test et
     await client.db("admin").command({ ping: 1 });
     console.log("MongoDB bağlantısı başarılı!");
     
+    // Veritabanı ve koleksiyonları oluştur
     db = client.db("stok_takip");
     
-    // Koleksiyonları oluştur
-    await db.createCollection("stoks");
-    await db.createCollection("hareketler");
+    try {
+      await db.createCollection("stoks");
+      console.log("stoks koleksiyonu oluşturuldu");
+    } catch (error) {
+      if (error.code !== 48) { // 48: collection already exists
+        throw error;
+      }
+    }
     
+    try {
+      await db.createCollection("hareketler");
+      console.log("hareketler koleksiyonu oluşturuldu");
+    } catch (error) {
+      if (error.code !== 48) { // 48: collection already exists
+        throw error;
+      }
+    }
+
+    // Server'ı başlat
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+      console.log(`Server ${PORT} portunda çalışıyor`);
+    });
+
   } catch (error) {
-    console.error("MongoDB bağlantı hatası:", error);
+    console.error("Başlangıç hatası:", error);
     process.exit(1);
   }
 }
 
-connectToMongo();
-
 // Uygulama kapandığında bağlantıyı kapat
 process.on('SIGINT', async () => {
-  await client.close();
+  if (client) {
+    await client.close();
+    console.log('MongoDB bağlantısı kapatıldı');
+  }
   process.exit(0);
 });
 
 // Routes
 // Test endpoint
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'API çalışıyor', timestamp: new Date().toISOString() });
+app.get('/api/test', async (req, res) => {
+  try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
+    res.json({ 
+      message: 'API çalışıyor',
+      timestamp: new Date().toISOString(),
+      dbStatus: 'connected'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      dbStatus: 'disconnected'
+    });
+  }
 });
 
 // Tüm stokları getir
 app.get('/api/stoklar', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     console.log('Stoklar isteniyor...');
     const stoklar = await db.collection("stoks").find({}).toArray();
     console.log('Bulunan stoklar:', stoklar);
@@ -70,6 +114,9 @@ app.get('/api/stoklar', async (req, res) => {
 // Yeni stok ekle
 app.post('/api/stoklar', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     const stok = {
       ...req.body,
       tarih: new Date().toLocaleDateString('tr-TR')
@@ -102,6 +149,9 @@ app.post('/api/stoklar', async (req, res) => {
 // Stok güncelle
 app.put('/api/stoklar/:id', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     const { ObjectId } = require('mongodb');
     const stokId = new ObjectId(req.params.id);
     
@@ -140,6 +190,9 @@ app.put('/api/stoklar/:id', async (req, res) => {
 // Stok sil
 app.delete('/api/stoklar/:id', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     const { ObjectId } = require('mongodb');
     const stokId = new ObjectId(req.params.id);
     
@@ -154,6 +207,9 @@ app.delete('/api/stoklar/:id', async (req, res) => {
 // Stok girişi
 app.post('/api/stoklar/:id/giris', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     const { ObjectId } = require('mongodb');
     const stokId = new ObjectId(req.params.id);
     
@@ -191,6 +247,9 @@ app.post('/api/stoklar/:id/giris', async (req, res) => {
 // Stok çıkışı
 app.post('/api/stoklar/:id/cikis', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     const { ObjectId } = require('mongodb');
     const stokId = new ObjectId(req.params.id);
     
@@ -232,6 +291,9 @@ app.post('/api/stoklar/:id/cikis', async (req, res) => {
 // Hareketleri getir
 app.get('/api/hareketler', async (req, res) => {
   try {
+    if (!db) {
+      throw new Error('Veritabanı bağlantısı henüz hazır değil');
+    }
     const hareketler = await db.collection("hareketler")
       .find({})
       .sort({ tarih: -1 })
@@ -245,7 +307,5 @@ app.get('/api/hareketler', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server ${PORT} portunda çalışıyor`);
-}); 
+// Server'ı başlat
+startServer().catch(console.error); 
