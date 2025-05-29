@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stok Takip Sistemi</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -522,11 +523,71 @@
                 height: 300px; /* Mobilde daha küçük yükseklik */
             }
         }
+
+        .excel-import {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .excel-import h3 {
+            color: #34495e;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .info-text {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+
+        .excel-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-excel {
+            padding: 8px 16px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-excel:hover {
+            background-color: #219a52;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background-color: #eee;
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #27ae60;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>�� Stok Takip Sistemi</h1>
+        <h1>Stok Takip Sistemi</h1>
         
         <!-- Ürün Ekleme Formu -->
         <div class="form-section">
@@ -538,6 +599,23 @@
                 <input type="number" id="fiyat" placeholder="Birim Fiyat (₺)" min="0" step="0.01" required>
                 <button type="submit">Ürün Ekle</button>
             </form>
+            
+            <!-- Excel Import Bölümü -->
+            <div class="excel-import">
+                <h3>Excel'den Ürün Ekle</h3>
+                <p class="info-text">Excel dosyanız "Ürün Adı", "Kategori", "Miktar" ve "Birim Fiyat" sütunlarını içermelidir.</p>
+                <div class="excel-buttons">
+                    <button id="downloadSablon" class="btn-excel">Şablon İndir</button>
+                    <input type="file" id="excelFile" accept=".xlsx, .xls" style="display: none;">
+                    <button id="importExcel" class="btn-excel">Excel Dosyası Yükle</button>
+                </div>
+                <div id="importProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <p class="progress-text">İşleniyor...</p>
+                </div>
+            </div>
         </div>
 
         <!-- Görünüm Seçimi ve Arama -->
@@ -695,6 +773,7 @@
                 this.stokHareketleriChart = null;
                 this.kategoriDagilimChart = null;
                 this.init();
+                this.initExcelImport();
             }
 
             async init() {
@@ -863,20 +942,28 @@
             }
 
             async stokSil(id) {
+                if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+                    this.bildirimGoster('Geçersiz ürün ID', 'error');
+                    return;
+                }
+
                 if (confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
                     try {
                         const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
                             method: 'DELETE'
                         });
 
-                        if (!response.ok) throw new Error('Ürün silinemedi');
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.message || 'Ürün silinemedi');
+                        }
 
                         await this.verileriYukle();
                         this.guncelle();
                         this.bildirimGoster('Ürün başarıyla silindi!', 'success');
                     } catch (error) {
                         console.error('Ürün silme hatası:', error);
-                        this.bildirimGoster('Ürün silinirken bir hata oluştu', 'error');
+                        this.bildirimGoster(error.message || 'Ürün silinirken bir hata oluştu', 'error');
                     }
                 }
             }
@@ -926,6 +1013,11 @@
                 const aciklama = document.getElementById('girisAciklama').value;
 
                 try {
+                    // MongoDB ObjectId kontrolü
+                    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+                        throw new Error('Geçersiz ürün ID');
+                    }
+
                     const response = await fetch(`${this.API_URL}/stoklar/${id}/giris`, {
                         method: 'POST',
                         headers: {
@@ -934,7 +1026,10 @@
                         body: JSON.stringify({ miktar: girisMiktari, aciklama })
                     });
 
-                    if (!response.ok) throw new Error('Stok girişi yapılamadı');
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Stok girişi yapılamadı');
+                    }
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -942,7 +1037,7 @@
                     this.bildirimGoster('Stok girişi başarıyla yapıldı!', 'success');
                 } catch (error) {
                     console.error('Stok giriş hatası:', error);
-                    this.bildirimGoster('Stok girişi yapılırken bir hata oluştu', 'error');
+                    this.bildirimGoster(error.message || 'Stok girişi yapılırken bir hata oluştu', 'error');
                 }
             }
 
@@ -954,6 +1049,11 @@
                 const aciklama = document.getElementById('cikisAciklama').value;
 
                 try {
+                    // MongoDB ObjectId kontrolü
+                    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+                        throw new Error('Geçersiz ürün ID');
+                    }
+
                     const response = await fetch(`${this.API_URL}/stoklar/${id}/cikis`, {
                         method: 'POST',
                         headers: {
@@ -989,6 +1089,11 @@
                 };
 
                 try {
+                    // MongoDB ObjectId kontrolü
+                    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+                        throw new Error('Geçersiz ürün ID');
+                    }
+
                     const response = await fetch(`${this.API_URL}/stoklar/${id}`, {
                         method: 'PUT',
                         headers: {
@@ -997,7 +1102,10 @@
                         body: JSON.stringify(guncelStok)
                     });
 
-                    if (!response.ok) throw new Error('Stok güncellenemedi');
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Stok güncellenemedi');
+                    }
 
                     await this.verileriYukle();
                     this.guncelle();
@@ -1005,7 +1113,7 @@
                     this.bildirimGoster('Stok başarıyla güncellendi!', 'success');
                 } catch (error) {
                     console.error('Stok güncelleme hatası:', error);
-                    this.bildirimGoster('Stok güncellenirken bir hata oluştu', 'error');
+                    this.bildirimGoster(error.message || 'Stok güncellenirken bir hata oluştu', 'error');
                 }
             }
 
@@ -1391,6 +1499,132 @@
 
             bildirimGoster(mesaj, tip) {
                 console.log(`${tip}: ${mesaj}`);
+            }
+
+            initExcelImport() {
+                const downloadSablon = document.getElementById('downloadSablon');
+                const importExcel = document.getElementById('importExcel');
+                const excelFile = document.getElementById('excelFile');
+                
+                downloadSablon.addEventListener('click', () => this.sablonIndir());
+                importExcel.addEventListener('click', () => excelFile.click());
+                excelFile.addEventListener('change', (e) => this.excelDosyasiOku(e));
+            }
+
+            sablonIndir() {
+                const workbook = XLSX.utils.book_new();
+                const data = [
+                    ['Ürün Adı', 'Kategori', 'Miktar', 'Birim Fiyat'],
+                    ['Örnek Ürün 1', 'Kategori 1', 10, 100],
+                    ['Örnek Ürün 2', 'Kategori 2', 20, 150]
+                ];
+                
+                const worksheet = XLSX.utils.aoa_to_sheet(data);
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Ürünler');
+                
+                XLSX.writeFile(workbook, 'stok_takip_sablon.xlsx');
+            }
+
+            async excelDosyasiOku(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const progressBar = document.getElementById('importProgress');
+                const progressFill = progressBar.querySelector('.progress-fill');
+                const progressText = progressBar.querySelector('.progress-text');
+                
+                try {
+                    progressBar.style.display = 'block';
+                    progressFill.style.width = '30%';
+                    progressText.textContent = 'Dosya okunuyor...';
+
+                    const data = await this.excelOku(file);
+                    
+                    progressFill.style.width = '60%';
+                    progressText.textContent = 'Veriler işleniyor...';
+
+                    // İlk satırı (başlıkları) kontrol et
+                    const headers = data[0];
+                    const requiredHeaders = ['Ürün Adı', 'Kategori', 'Miktar', 'Birim Fiyat'];
+                    
+                    if (!requiredHeaders.every(header => headers.includes(header))) {
+                        throw new Error('Excel dosyası gerekli sütunları içermiyor');
+                    }
+
+                    // Başlık indekslerini bul
+                    const headerIndexes = {
+                        urunAdi: headers.indexOf('Ürün Adı'),
+                        kategori: headers.indexOf('Kategori'),
+                        miktar: headers.indexOf('Miktar'),
+                        fiyat: headers.indexOf('Birim Fiyat')
+                    };
+
+                    // Verileri işle ve API'ye gönder
+                    const urunler = data.slice(1).map(row => ({
+                        ad: row[headerIndexes.urunAdi],
+                        kategori: row[headerIndexes.kategori],
+                        miktar: parseInt(row[headerIndexes.miktar]),
+                        fiyat: parseFloat(row[headerIndexes.fiyat])
+                    })).filter(urun => urun.ad && urun.kategori && !isNaN(urun.miktar) && !isNaN(urun.fiyat));
+
+                    progressFill.style.width = '80%';
+                    progressText.textContent = 'Ürünler ekleniyor...';
+
+                    // Toplu ürün ekleme
+                    const response = await fetch(`${this.API_URL}/stoklar/toplu`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(urunler)
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Ürünler eklenirken bir hata oluştu');
+                    }
+
+                    progressFill.style.width = '100%';
+                    progressText.textContent = 'Tamamlandı!';
+                    
+                    await this.verileriYukle();
+                    this.guncelle();
+                    this.bildirimGoster('Excel dosyası başarıyla içe aktarıldı!', 'success');
+
+                    setTimeout(() => {
+                        progressBar.style.display = 'none';
+                        progressFill.style.width = '0%';
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('Excel import hatası:', error);
+                    progressBar.style.display = 'none';
+                    this.bildirimGoster(error.message || 'Excel dosyası işlenirken bir hata oluştu', 'error');
+                }
+
+                // Input'u temizle
+                e.target.value = '';
+            }
+
+            excelOku(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                            resolve(jsonData);
+                        } catch (error) {
+                            reject(new Error('Excel dosyası okunamadı'));
+                        }
+                    };
+                    
+                    reader.onerror = () => reject(new Error('Dosya okuma hatası'));
+                    reader.readAsArrayBuffer(file);
+                });
             }
         }
 
