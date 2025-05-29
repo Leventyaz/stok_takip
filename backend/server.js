@@ -12,7 +12,12 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB bağlantısı
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+})
   .then(() => console.log('MongoDB bağlantısı başarılı'))
   .catch((err) => console.error('MongoDB bağlantı hatası:', err));
 
