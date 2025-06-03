@@ -217,14 +217,6 @@
                         <div class="value" id="detayMiktar">0</div>
                     </div>
                     <div class="detay-item">
-                        <label>Birim Fiyat</label>
-                        <div class="value" id="detayFiyat">₺0</div>
-                    </div>
-                    <div class="detay-item">
-                        <label>Toplam Değer</label>
-                        <div class="value" id="detayToplamDeger">₺0</div>
-                    </div>
-                    <div class="detay-item">
                         <label>Durum</label>
                         <div class="value" id="detayDurum">Normal</div>
                     </div>
@@ -409,8 +401,6 @@
                 document.getElementById('detayStokKodu').textContent = formatStokId(stok._id);
                 document.getElementById('detayKategori').textContent = stok.kategori;
                 document.getElementById('detayMiktar').textContent = `${stok.miktar} adet`;
-                document.getElementById('detayFiyat').textContent = `₺${paraFormat(stok.fiyat)}`;
-                document.getElementById('detayToplamDeger').textContent = `₺${paraFormat(stok.miktar * stok.fiyat)}`;
                 
                 const durum = durumBelirle(stok.miktar);
                 document.getElementById('detayDurum').textContent = durum.text;

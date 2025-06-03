@@ -1185,14 +1185,13 @@
                 <input type="text" id="urunAdi" placeholder="Ürün Adı" required>
                 <input type="text" id="kategori" placeholder="Kategori" required>
                 <input type="number" id="miktar" placeholder="Miktar" min="0" required>
-                <input type="number" id="fiyat" placeholder="Birim Fiyat (₺)" min="0" step="0.01" required>
                 <button type="submit">Ürün Ekle</button>
             </form>
             
             <!-- Excel Import Bölümü -->
             <div class="excel-import">
                 <h3>Excel'den Ürün Ekle</h3>
-                <p class="info-text">Excel dosyanız "Ürün Adı", "Kategori", "Miktar" ve "Birim Fiyat" sütunlarını içermelidir.</p>
+                <p class="info-text">Excel dosyanız "Ürün Adı", "Kategori" ve "Miktar" sütunlarını içermelidir.</p>
                 <div class="excel-buttons">
                     <button id="downloadSablon" class="btn-excel">Şablon İndir</button>
                     <input type="file" id="excelFile" accept=".xlsx, .xls" style="display: none;">
@@ -1233,10 +1232,6 @@
                 <p id="toplamStok">0</p>
             </div>
             <div class="stat-card">
-                <h3>Toplam Değer</h3>
-                <p id="toplamDeger">₺0</p>
-            </div>
-            <div class="stat-card">
                 <h3>Kritik Stok</h3>
                 <p id="kritikStok">0</p>
             </div>
@@ -1269,8 +1264,6 @@
                         <th>Ürün Adı</th>
                         <th>Kategori</th>
                         <th>Miktar</th>
-                        <th>Birim Fiyat</th>
-                        <th>Toplam Değer</th>
                         <th>Durum</th>
                         <th>İşlemler</th>
                     </tr>
@@ -1311,7 +1304,6 @@
                 <input type="text" id="guncelleAdi" placeholder="Ürün Adı" required>
                 <input type="text" id="guncelleKategori" placeholder="Kategori" required>
                 <input type="number" id="guncelleMiktar" placeholder="Miktar" min="0" required>
-                <input type="number" id="guncelleFiyat" placeholder="Birim Fiyat" min="0" step="0.01" required>
                 <button type="submit">Güncelle</button>
             </form>
         </div>
@@ -2001,7 +1993,6 @@
                 }
 
                 filtrelenmisStoklar.forEach(stok => {
-                    const toplamDeger = stok.miktar * stok.fiyat;
                     const durum = this.durumBelirle(stok.miktar);
                     const yuzde = Math.min((stok.miktar / 100) * 100, 100);
                     const stokId = this.formatStokId(stok._id);
@@ -2020,14 +2011,6 @@
                                 <div class="stok-info-row">
                                     <span class="stok-info-label">Miktar:</span>
                                     <span class="stok-info-value">${stok.miktar} adet</span>
-                                </div>
-                                <div class="stok-info-row">
-                                    <span class="stok-info-label">Birim Fiyat:</span>
-                                    <span class="stok-info-value">₺${this.paraFormat(stok.fiyat)}</span>
-                                </div>
-                                <div class="stok-info-row">
-                                    <span class="stok-info-label">Toplam Değer:</span>
-                                    <span class="stok-info-value">₺${this.paraFormat(toplamDeger)}</span>
                                 </div>
                                 <div class="stok-miktar-bar">
                                     <div class="stok-miktar-fill ${durum.class}" style="width: ${yuzde}%"></div>
@@ -2067,15 +2050,14 @@
                 
                 if (filtrelenmisStoklar.length === 0) {
                     if (this.stoklar.length === 0) {
-                        this.stokListesi.innerHTML = '<tr><td colspan="8" style="text-align: center;">Henüz stok bulunmuyor.</td></tr>';
+                        this.stokListesi.innerHTML = '<tr><td colspan="6" style="text-align: center;">Henüz stok bulunmuyor.</td></tr>';
                     } else {
-                        this.stokListesi.innerHTML = '<tr><td colspan="8" style="text-align: center;">Arama kriterlerine uygun stok bulunamadı.</td></tr>';
+                        this.stokListesi.innerHTML = '<tr><td colspan="6" style="text-align: center;">Arama kriterlerine uygun stok bulunamadı.</td></tr>';
                     }
                     return;
                 }
 
                 filtrelenmisStoklar.forEach(stok => {
-                    const toplamDeger = stok.miktar * stok.fiyat;
                     const durum = this.durumBelirle(stok.miktar);
                     const stokId = this.formatStokId(stok._id);
                     
@@ -2085,8 +2067,6 @@
                             <td>${stok.ad}</td>
                             <td>${stok.kategori}</td>
                             <td>${stok.miktar}</td>
-                            <td>₺${this.paraFormat(stok.fiyat)}</td>
-                            <td>₺${this.paraFormat(toplamDeger)}</td>
                             <td><span class="${durum.class}" style="color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${durum.text}</span></td>
                             <td>
                                 <button class="btn-giris" onclick="stokTakip.girisModalAc('${stok._id}')">Giriş</button>
@@ -2150,12 +2130,10 @@
             istatistikleriGuncelle() {
                 const toplamUrun = this.stoklar.length;
                 const toplamStok = this.stoklar.reduce((toplam, stok) => toplam + stok.miktar, 0);
-                const toplamDeger = this.stoklar.reduce((toplam, stok) => toplam + (stok.miktar * stok.fiyat), 0);
                 const kritikStok = this.stoklar.filter(stok => stok.miktar < 10).length;
 
                 document.getElementById('toplamUrun').textContent = toplamUrun;
                 document.getElementById('toplamStok').textContent = toplamStok;
-                document.getElementById('toplamDeger').textContent = `₺${this.paraFormat(toplamDeger)}`;
                 document.getElementById('kritikStok').textContent = kritikStok;
             }
 
