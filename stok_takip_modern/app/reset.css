@@ -1,0 +1,38 @@
+/* CSS Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+}
+
+/* Make sure images are responsive */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Basic button styling */
+button, [type='button'], [type='reset'], [type='submit'] {
+  cursor: pointer;
+}
+
+/* Basic form control styles */
+input, textarea, select {
+  font-family: inherit;
+  font-size: 100%;
+}
+
+/* Tailwind sometimes needs a little help with default styling */
+button:focus, input:focus, textarea:focus, select:focus {
+  outline: none;
+} 
